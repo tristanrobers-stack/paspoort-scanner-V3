@@ -1,0 +1,90 @@
+import { Guest, PropertySettings, BookingData } from '../types';
+
+export const SAMPLE_PROPERTY: PropertySettings = {
+  id: 'prop-leticia',
+  codigoEstablecimiento: '0000472036',
+  codigoArrendador: 'Y8491023B',
+  nombreEstablecimiento: 'LETICIA - Appartement',
+  municipio: 'Alicante',
+  provincia: 'Alicante',
+  direccion: 'Calle Principal 1',
+};
+
+export const SAMPLE_IN_LAWS_PROPERTY: PropertySettings = {
+  id: 'prop-schoonouders',
+  codigoEstablecimiento: '',
+  codigoArrendador: '',
+  nombreEstablecimiento: 'Second Apartment (In-Laws)',
+  municipio: 'Torrevieja',
+  provincia: 'Alicante',
+  direccion: '',
+};
+
+export const SAMPLE_BOOKING: BookingData = {
+  referenciaReserva: 'AIRBNB-HM98412',
+  fechaEntrada: new Date().toISOString().split('T')[0],
+  horaEntrada: '16:00',
+  fechaSalida: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+  numeroPersonas: 3,
+};
+
+export const SAMPLE_GUESTS: Guest[] = [
+  {
+    id: 'sample-guest-1',
+    nombre: 'TRISTAN',
+    primerApellido: 'ROBERS',
+    segundoApellido: '',
+    sexo: 'M',
+    fechaNacimiento: '1988-06-14',
+    paisNacionalidad: 'NLD',
+    tipoDocumento: 'P',
+    numeroDocumento: 'NL8849102',
+    numSoporte: 'X88491029',
+    fechaExpedicion: '2021-04-10',
+    fechaCaducidad: '2031-04-10',
+    paisExpedicion: 'NLD',
+    mrzValid: true,
+    mrzLines: [
+      'P<NLDROBERS<<TRISTAN<<<<<<<<<<<<<<<<<<<<<<<<',
+      'NL88491024NLD8806142M3104108<<<<<<<<<<<<<<06',
+    ],
+    confidence: 'high',
+    notes: 'Dutch passport, MRZ 100% verified',
+  },
+  {
+    id: 'sample-guest-2',
+    nombre: 'SOPHIE',
+    primerApellido: 'VAN DEN BERG',
+    segundoApellido: '',
+    sexo: 'F',
+    fechaNacimiento: '1991-09-22',
+    paisNacionalidad: 'NLD',
+    tipoDocumento: 'I',
+    numeroDocumento: 'IBA781920',
+    numSoporte: 'IB0491823',
+    fechaExpedicion: '2022-01-15',
+    fechaCaducidad: '2032-01-15',
+    paisExpedicion: 'NLD',
+    mrzValid: true,
+    confidence: 'high',
+    notes: 'Dutch EU Identity Card',
+  },
+  {
+    id: 'sample-guest-3',
+    nombre: 'CARLOS',
+    primerApellido: 'FERNANDEZ',
+    segundoApellido: 'MARTINEZ',
+    sexo: 'M',
+    fechaNacimiento: '1985-11-18',
+    paisNacionalidad: 'ESP',
+    tipoDocumento: 'D',
+    numeroDocumento: '48920194T',
+    numSoporte: 'IDESP004918',
+    fechaExpedicion: '2020-03-12',
+    fechaCaducidad: '2030-03-12',
+    paisExpedicion: 'ESP',
+    mrzValid: true,
+    confidence: 'high',
+    notes: 'Spanish DNI 3.0 with Num Soporte (IDESP...)',
+  },
+];

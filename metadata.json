@@ -1,0 +1,6 @@
+{
+  "name": "SES.HOSPEDAJES Spanje Paspoort Scanner",
+  "description": "Automated passport and ID scanner for Spain's SES.HOSPEDAJES (RD 933/2021 Registro de Viajeros) with instant XML, CSV, and Guest Report export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
