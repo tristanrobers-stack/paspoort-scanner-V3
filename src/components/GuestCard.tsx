@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Trash2, Copy, CheckCircle, AlertTriangle, ShieldCheck, User, FileText, ExternalLink } from 'lucide-react';
+import { Trash2, Copy, CheckCircle, AlertTriangle, ShieldCheck, User, FileText, ExternalLink, CreditCard, Sparkles, Phone } from 'lucide-react';
 import { Guest, DocumentType, Gender } from '../types';
 import { COUNTRIES, getCountryByCode } from '../utils/countries';
+import { isSpanishOrNieDoc, hasMissingNumSoporte, mapTipoDocumento } from '../utils/xmlGenerator';
 
 interface GuestCardProps {
   guest: Guest;
@@ -9,6 +10,8 @@ interface GuestCardProps {
   onUpdate: (id: string, updated: Partial<Guest>) => void;
   onDelete: (id: string) => void;
   onDuplicate: (guest: Guest) => void;
+  onOpenNumSoporteModal?: (guestId: string) => void;
+  bookingPhone?: string;
 }
 
 export const GuestCard: React.FC<GuestCardProps> = ({
@@ -17,14 +20,14 @@ export const GuestCard: React.FC<GuestCardProps> = ({
   onUpdate,
   onDelete,
   onDuplicate,
+  onOpenNumSoporteModal,
+  bookingPhone,
 }) => {
   const currentCountry = getCountryByCode(guest.paisNacionalidad);
   const isPdf = guest.fileType === 'pdf' || guest.imagePreview?.startsWith('data:application/pdf');
 
-  const isSpanishDoc =
-    guest.tipoDocumento === 'D' ||
-    (guest.paisNacionalidad === 'ESP' && guest.tipoDocumento !== 'P') ||
-    /^[XYZ]/i.test(guest.numeroDocumento || '');
+  const isSpanishDoc = isSpanishOrNieDoc(guest);
+  const missingNumSoporte = hasMissingNumSoporte(guest);
 
   const hasMissingMandatory =
     !guest.nombre ||
@@ -32,7 +35,8 @@ export const GuestCard: React.FC<GuestCardProps> = ({
     !guest.fechaNacimiento ||
     !guest.numeroDocumento ||
     !guest.paisNacionalidad ||
-    (isSpanishDoc && !guest.numSoporte?.trim());
+    missingNumSoporte;
+
 
   const handleOpenDocument = () => {
     if (guest.imagePreview) {
@@ -119,17 +123,31 @@ export const GuestCard: React.FC<GuestCardProps> = ({
               </span>
               <span>&bull;</span>
               <span>{guest.sexo === 'M' ? 'Male (M)' : guest.sexo === 'F' ? 'Female (F)' : 'X'}</span>
+              {guest.telefono && (
+                <>
+                  <span>&bull;</span>
+                  <span className="text-slate-600 font-mono">
+                    Tel: <strong className="text-slate-800">{guest.telefono}</strong>
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap">
-          {isSpanishDoc && !guest.numSoporte?.trim() && (
-            <span className="text-[11px] text-red-700 bg-red-50 px-2 py-1 rounded-lg border border-red-200 flex items-center gap-1 font-semibold">
-              <AlertTriangle className="w-3 h-3 text-red-600" /> Num Soporte required
-            </span>
+          {missingNumSoporte && (
+            <button
+              type="button"
+              onClick={() => onOpenNumSoporteModal?.(guest.id)}
+              className="text-[11px] text-red-700 bg-red-100/90 hover:bg-red-200 px-2.5 py-1 rounded-lg border border-red-300 flex items-center gap-1.5 font-bold transition shadow-sm"
+              title="Klik om het Num Soporte venster te openen en de Spaanse validatiefout te voorkomen"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 animate-pulse" />
+              <span>Num Soporte Ontbreekt (Vul in &rarr;)</span>
+            </button>
           )}
-          {hasMissingMandatory && (!isSpanishDoc || guest.numSoporte?.trim()) && (
+          {hasMissingMandatory && !missingNumSoporte && (
             <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3 text-amber-600" /> Required fields missing
             </span>
@@ -287,34 +305,138 @@ export const GuestCard: React.FC<GuestCardProps> = ({
         </div>
 
         <div>
-          <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-            <span className="flex items-center gap-1">
-              Num Soporte {isSpanishDoc ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal">(Optional)</span>}
-            </span>
-            {isSpanishDoc && (
-              <span className="text-[10px] text-red-600 font-bold uppercase tracking-tight bg-red-50 px-1 rounded border border-red-200">
-                Req. for DNI/NIE
-              </span>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block font-semibold text-slate-700">
+              Phone Number (Teléfono) *
+            </label>
+            {bookingPhone && guest.telefono !== bookingPhone && (
+              <button
+                type="button"
+                onClick={() => onUpdate(guest.id, { telefono: bookingPhone })}
+                className="text-[10px] text-red-600 hover:text-red-700 font-medium underline"
+                title="Synchroniseer met het centrale telefoonnummer van de boeking"
+              >
+                Sync boeking
+              </button>
             )}
-          </label>
+          </div>
+          <input
+            type="tel"
+            value={guest.telefono || ''}
+            onChange={(e) => onUpdate(guest.id, { telefono: e.target.value })}
+            placeholder={bookingPhone || '+31 6 12345678'}
+            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 font-mono text-xs font-medium text-slate-900"
+          />
+          {guest.telefono && bookingPhone && guest.telefono === bookingPhone ? (
+            <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+              ✓ Gesynchroniseerd met boeking
+            </span>
+          ) : !guest.telefono && bookingPhone ? (
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              Gebruikt boeking: {bookingPhone}
+            </span>
+          ) : null}
+        </div>
+
+        <div
+          className={`p-2.5 rounded-xl border transition ${
+            missingNumSoporte
+              ? 'bg-red-50/70 border-red-300 ring-1 ring-red-400'
+              : guest.numSoporte
+              ? 'bg-emerald-50/30 border-emerald-200'
+              : 'bg-slate-50/50 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <label className="font-bold text-slate-800 flex items-center gap-1 text-xs">
+              <span>Num Soporte (Número de Soporte)</span>
+              {isSpanishDoc ? (
+                <span className="text-red-600 font-extrabold">*</span>
+              ) : (
+                <span className="text-slate-400 font-normal text-[10px]">(Optioneel)</span>
+              )}
+            </label>
+
+            {onOpenNumSoporteModal && (
+              <button
+                type="button"
+                onClick={() => onOpenNumSoporteModal(guest.id)}
+                className="text-[10px] text-amber-700 hover:text-amber-900 bg-amber-100/90 hover:bg-amber-200 px-1.5 py-0.5 rounded font-bold transition flex items-center gap-1 border border-amber-300"
+                title="Open het speciale Num Soporte venster met visuele gids"
+              >
+                <CreditCard className="w-3 h-3" />
+                <span>Venster &amp; Uitleg</span>
+              </button>
+            )}
+          </div>
+
           <input
             type="text"
             value={guest.numSoporte || ''}
             onChange={(e) =>
               onUpdate(guest.id, { numSoporte: e.target.value.toUpperCase().replace(/\s/g, '') })
             }
-            placeholder={isSpanishDoc ? "e.g. IDESP123456 or E12345678" : "e.g. IDESP... or Support Nº"}
-            className={`w-full px-2.5 py-1.5 border rounded-lg outline-none focus:ring-2 uppercase font-mono font-bold text-xs ${
-              isSpanishDoc && !guest.numSoporte?.trim()
-                ? 'border-amber-400 bg-amber-50/60 focus:ring-amber-500 text-slate-900 ring-1 ring-amber-300'
-                : 'border-slate-300 focus:ring-red-500 text-slate-900'
+            placeholder={
+              isSpanishDoc
+                ? 'bijv. IDESP004918 of E12345678'
+                : 'bijv. IDESP... of Kaartnummer'
+            }
+            className={`w-full px-2.5 py-1.5 border rounded-lg outline-none uppercase font-mono font-bold text-xs ${
+              missingNumSoporte
+                ? 'border-red-400 bg-white text-slate-900 focus:ring-2 focus:ring-red-500'
+                : 'border-slate-300 focus:ring-2 focus:ring-red-500 bg-white text-slate-900'
             }`}
           />
-          <p className="text-[10px] text-slate-500 mt-0.5 truncate" title="Número de soporte del documento (DNI: IDESP..., TIE: E...)">
-            {isSpanishDoc
-              ? 'DNI (IDESP...), TIE (E...), Cert. UE (C...)'
-              : 'Support / card Nº on document'}
-          </p>
+
+          {/* Quick prefix helper buttons */}
+          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+            <span className="text-[9.5px] text-slate-400 font-medium">Snel:</span>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = guest.numSoporte || '';
+                if (!cur.startsWith('IDESP')) {
+                  onUpdate(guest.id, { numSoporte: ('IDESP' + cur).toUpperCase() });
+                }
+              }}
+              className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded"
+              title="DNI Supportnummer (IDESP)"
+            >
+              +IDESP
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = guest.numSoporte || '';
+                if (!cur.startsWith('E')) {
+                  onUpdate(guest.id, { numSoporte: ('E' + cur).toUpperCase() });
+                }
+              }}
+              className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded"
+              title="TIE Buitenlanders (E...)"
+            >
+              +E
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const cur = guest.numSoporte || '';
+                if (!cur.startsWith('C')) {
+                  onUpdate(guest.id, { numSoporte: ('C' + cur).toUpperCase() });
+                }
+              }}
+              className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded"
+              title="Certificado UE Groen (C...)"
+            >
+              +C
+            </button>
+          </div>
+
+          {missingNumSoporte && (
+            <p className="text-[10px] text-red-700 mt-1 font-semibold leading-tight">
+              ⚠️ SES Fout voorkomen: [Ha de informar el número de soporte del documento.]
+            </p>
+          )}
         </div>
 
         <div>

@@ -79,13 +79,20 @@ For each traveler, pay special attention to:
      'D' = DNI (Spanish National Identity Card)
      'C' = Permiso de conducir (Driver's license)
    - "numeroDocumento": Official alphanumeric document number (in uppercase, remove spaces/hyphens).
-   - "numSoporte": Support number of the physical document if visible (e.g. for Spanish DNI: "IDESP..." or 9-character code printed under "NUM SOPORTE" / "IDESP"; for TIE / Foreigner card: code starting with 'E' followed by digits; for green EU certificate: 'C' + digits; for passport / other cards: document support or card number if present, else empty).
+   - "numSoporte": Support number of the physical document (CRUCIAL for Spanish DNI/NIE to avoid the Ministry validation rejection: "Ha de informar el número de soporte del documento").
+     * For Spanish DNI (DNI 3.0 / 4.0 / electronic DNI): Check BOTH the front and back of the card.
+       - On the front: look for "NUM. SOPORTE", "NUM SOPORTE", "Nº SOPORTE", "NUM SOPORT", or "IDESP" (usually 3 letters and 6 digits like 'ABC123456' or 'IDESP' + digits like 'IDESP004918').
+       - On the back: check the MRZ strip; Line 1 begins with 'IDESP' or 'ID' followed by support data.
+     * For Foreigners in Spain with TIE (Tarjeta de Identidad de Extranjero / NIE card): Card support number starting with 'E' followed by 8 digits (e.g. 'E12345678').
+     * For EU Citizens in Spain with Certificado UE (green NIE document): Number starting with 'C' followed by 8 digits (e.g. 'C12345678').
+     * For any other ID cards with a support or card serial number: extract it into numSoporte.
+   - "telefono": Phone number if found in the document (or empty if not).
    - "fechaExpedicion": YYYY-MM-DD date of issue (if found, else empty).
    - "fechaCaducidad": YYYY-MM-DD date of expiry (if found, else empty).
    - "paisExpedicion": 3-letter ISO-3 country of issuance.
    - "mrzLines": Array of exact raw MRZ strings.
    - "confidence": "high", "medium", or "low".
-   - "notes": Any observations (e.g. "PDF page 1: valid Dutch passport", "MRZ verified").`;
+   - "notes": Any observations (e.g. "Spanish DNI detected with Num Soporte IDESP004918", "PDF page 1: valid Dutch passport").`;
 
     let response: any;
     let retries = 3;
@@ -131,6 +138,7 @@ For each traveler, pay special attention to:
                       tipoDocumento: { type: Type.STRING, description: 'P (Passport), I (EU ID / NIE), D (Spanish DNI), or C (Driving license)' },
                       numeroDocumento: { type: Type.STRING, description: 'Alphanumeric document number' },
                       numSoporte: { type: Type.STRING, description: 'Support number of the document / Num Soporte (e.g. IDESP..., E..., C...)' },
+                      telefono: { type: Type.STRING, description: 'Phone number if found in document' },
                       fechaExpedicion: { type: Type.STRING, description: 'YYYY-MM-DD or empty' },
                       fechaCaducidad: { type: Type.STRING, description: 'YYYY-MM-DD or empty' },
                       paisExpedicion: { type: Type.STRING, description: '3-letter ISO code' },

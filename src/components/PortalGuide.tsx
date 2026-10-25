@@ -125,12 +125,12 @@ export const PortalGuide: React.FC<PortalGuideProps> = ({ isOpen, onClose }) => 
                   Troubleshooting: &quot;Ha de informar el número de soporte del documento&quot;
                 </strong>
                 <p>
-                  If you receive this error when uploading to <em>hospedajes.ses.mir.es</em>, fill in the <strong>Num Soporte</strong> field on the guest card:
+                  Krijg je deze foutmelding bij het uploaden naar <em>hospedajes.ses.mir.es</em>? Klik in deze app op de knop <strong>&quot;Num Soporte&quot;</strong> in de bovenbalk of op de gastenkaart om het venster te openen en het nummer in te vullen:
                 </p>
                 <ul className="list-disc pl-4 space-y-0.5 text-blue-900">
-                  <li><strong>DNI 3.0 / 4.0:</strong> 9 alphanumeric digits printed on the front under &quot;NUM SOPORTE&quot; or &quot;IDESP...&quot;</li>
-                  <li><strong>TIE (Foreigner Card):</strong> Printed on top right, starts with letter &quot;E&quot; followed by 8 digits (e.g. E12345678).</li>
-                  <li><strong>EU Green NIE Card:</strong> Starts with &quot;C&quot; followed by 8 digits.</li>
+                  <li><strong>DNI 3.0 / 4.0:</strong> 9 alfanumerieke tekens op de voorkant onder &quot;NUM SOPORTE&quot; of &quot;IDESP...&quot;</li>
+                  <li><strong>TIE (Buitenlandse Verblijfskaart):</strong> Rechtsboven op de kaart, begint met &quot;E&quot; gevolgd door 8 cijfers (bijv. E12345678).</li>
+                  <li><strong>EU Groen NIE Certificaat:</strong> Begint met &quot;C&quot; gevolgd door 8 cijfers (bijv. C12345678).</li>
                 </ul>
               </div>
             </div>

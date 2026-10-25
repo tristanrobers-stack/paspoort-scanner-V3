@@ -26,6 +26,9 @@ export const SAMPLE_BOOKING: BookingData = {
   horaEntrada: '16:00',
   fechaSalida: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
   numeroPersonas: 3,
+  tipoPago: 'PLATF',
+  medioPago: 'PLATAFORMA VIRTUAL',
+  telefonoContacto: '+31612345678',
 };
 
 export const SAMPLE_GUESTS: Guest[] = [
@@ -43,6 +46,7 @@ export const SAMPLE_GUESTS: Guest[] = [
     fechaExpedicion: '2021-04-10',
     fechaCaducidad: '2031-04-10',
     paisExpedicion: 'NLD',
+    telefono: '+31612345678',
     mrzValid: true,
     mrzLines: [
       'P<NLDROBERS<<TRISTAN<<<<<<<<<<<<<<<<<<<<<<<<',
@@ -65,6 +69,7 @@ export const SAMPLE_GUESTS: Guest[] = [
     fechaExpedicion: '2022-01-15',
     fechaCaducidad: '2032-01-15',
     paisExpedicion: 'NLD',
+    telefono: '+31612345678',
     mrzValid: true,
     confidence: 'high',
     notes: 'Dutch EU Identity Card',
@@ -83,6 +88,7 @@ export const SAMPLE_GUESTS: Guest[] = [
     fechaExpedicion: '2020-03-12',
     fechaCaducidad: '2030-03-12',
     paisExpedicion: 'ESP',
+    telefono: '+31612345678',
     mrzValid: true,
     confidence: 'high',
     notes: 'Spanish DNI 3.0 with Num Soporte (IDESP...)',

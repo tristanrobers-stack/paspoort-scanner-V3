@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Check,
   Plus,
+  CreditCard,
 } from 'lucide-react';
 import { PropertySettings } from '../types';
 
@@ -20,6 +21,8 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onOpenGuide: () => void;
   onOpenAnnualRegister: () => void;
+  onOpenNumSoporteModal?: () => void;
+  missingNumSoporteCount?: number;
   archivedCount: number;
   hasServerAi: boolean;
 }
@@ -31,6 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenGuide,
   onOpenAnnualRegister,
+  onOpenNumSoporteModal,
+  missingNumSoporteCount = 0,
   archivedCount,
   hasServerAi,
 }) => {
@@ -160,6 +165,25 @@ export const Header: React.FC<HeaderProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>{hasServerAi ? 'Gemini 3.8 Flash Vision' : 'AI Active'}</span>
           </div>
+
+          <button
+            type="button"
+            onClick={onOpenNumSoporteModal}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              missingNumSoporteCount > 0
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold ring-2 ring-amber-300'
+                : 'bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200'
+            }`}
+            title="Open het Número de Soporte invoervenster"
+          >
+            <CreditCard className={`w-3.5 h-3.5 ${missingNumSoporteCount > 0 ? 'text-slate-950' : 'text-amber-400'}`} />
+            <span>Num Soporte</span>
+            {missingNumSoporteCount > 0 && (
+              <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                {missingNumSoporteCount}
+              </span>
+            )}
+          </button>
 
           <button
             type="button"

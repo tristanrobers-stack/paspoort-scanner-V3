@@ -50,29 +50,62 @@ export function formatDateTimeWithTz(dateStr?: string, timeStr = '15:00'): strin
 /**
  * Map DocumentType to official schema: [NIF, NIE, PAS, OTRO]
  */
-function mapTipoDocumento(guest: Guest): 'NIF' | 'NIE' | 'PAS' | 'OTRO' {
+export function mapTipoDocumento(guest: Guest): 'NIF' | 'NIE' | 'PAS' | 'OTRO' {
   const docType = guest.tipoDocumento;
-  const nat = (guest.paisNacionalidad || 'ESP').toUpperCase().trim();
+  const nat = (guest.paisNacionalidad || '').toUpperCase().trim();
   const num = (guest.numeroDocumento || '').toUpperCase().trim();
 
   if (docType === 'P') {
     return 'PAS';
   }
 
-  if (nat === 'ESP') {
-    if (/^[XYZ]/i.test(num)) {
-      return 'NIE';
-    }
+  // Spanish NIE begins with X, Y, or Z followed by digits and letter
+  // Many foreigners living in Spain have NIE with their own nationality (e.g. NLD, GBR)
+  if (/^[XYZ]\d{7,8}[A-Z]?$/i.test(num) || /^[XYZ]/i.test(num)) {
+    return 'NIE';
+  }
+
+  // Spanish DNI (Documento Nacional de Identidad)
+  if (docType === 'D' || nat === 'ESP') {
     return 'NIF';
   }
 
   // European ID card or other non-passport document
-  if (docType === 'I' || docType === 'D') {
+  if (docType === 'I' || docType === 'C') {
     return 'OTRO';
   }
 
   return 'PAS';
 }
+
+/**
+ * Check if the guest document is Spanish DNI or Foreigner NIE/TIE,
+ * which strictly requires <numSoporte> in the SES.HOSPEDAJES portal.
+ */
+export function isSpanishOrNieDoc(guest: Guest): boolean {
+  const num = (guest.numeroDocumento || '').toUpperCase().trim();
+  const nat = (guest.paisNacionalidad || '').toUpperCase().trim();
+  const docType = guest.tipoDocumento;
+
+  if (docType === 'D' || nat === 'ESP') return true;
+  if (/^[XYZ]/i.test(num)) return true;
+  const mapped = mapTipoDocumento(guest);
+  return mapped === 'NIF' || mapped === 'NIE';
+}
+
+/**
+ * Check if a guest will cause the SES.HOSPEDAJES error:
+ * "Error de validación en la comunicación [1]: [Ha de informar el número de soporte del documento.]"
+ */
+export function hasMissingNumSoporte(guest: Guest, bookingSupport?: string): boolean {
+  if (isSpanishOrNieDoc(guest)) {
+    const hasGuestSoporte = Boolean(guest.numSoporte && guest.numSoporte.trim());
+    const hasBookingSoporte = Boolean(bookingSupport && bookingSupport.trim());
+    return !hasGuestSoporte && !hasBookingSoporte;
+  }
+  return false;
+}
+
 
 /**
  * Map Sex to official schema: [H, M, O]
@@ -106,7 +139,12 @@ export function generateSesXml(
   const numHabitaciones = booking.numHabitaciones || 1;
   const internet = booking.internet !== false;
   const tipoPago = booking.tipoPago || 'PLATF';
-  const medioPago = (booking.medioPago || 'PLATAFORMA VIRTUAL').trim();
+  let autoMedioPago = 'PLATAFORMA VIRTUAL';
+  if (tipoPago === 'TARJT') autoMedioPago = 'TARJETA';
+  else if (tipoPago === 'TRANS') autoMedioPago = 'TRANSFERENCIA BANCARIA';
+  else if (tipoPago === 'EFECT') autoMedioPago = 'EFECTIVO';
+  else if (tipoPago === 'MOVIL') autoMedioPago = 'PAGO MOVIL';
+  const medioPago = (booking.medioPago || autoMedioPago).trim();
 
   // Guest 1 as titular or property name
   const titular =
@@ -150,9 +188,9 @@ export function generateSesXml(
     }
     xml += `        <tipoDocumento>${mapTipoDocumento(guest)}</tipoDocumento>\n`;
     xml += `        <numeroDocumento>${escapeXml(cleanDocNum)}</numeroDocumento>\n`;
-    if (guest.numSoporte?.trim()) {
-      const cleanNumSoporte = guest.numSoporte.toUpperCase().replace(/\s/g, '');
-      xml += `        <numSoporte>${escapeXml(cleanNumSoporte)}</numSoporte>\n`;
+    const effectiveNumSoporte = (guest.numSoporte?.trim() || '').toUpperCase().replace(/\s/g, '');
+    if (effectiveNumSoporte) {
+      xml += `        <numSoporte>${escapeXml(effectiveNumSoporte)}</numSoporte>\n`;
     }
     xml += `        <fechaNacimiento>${formatDateWithTz(guest.fechaNacimiento)}</fechaNacimiento>\n`;
     xml += `        <nacionalidad>${escapeXml((guest.paisNacionalidad || 'NLD').toUpperCase().trim())}</nacionalidad>\n`;
@@ -175,8 +213,11 @@ export function generateSesXml(
 
     xml += `        </direccion>\n`;
 
-    if (guest.telefono?.trim()) {
-      xml += `        <telefono>${escapeXml(guest.telefono.trim())}</telefono>\n`;
+    const effectivePhone = (guest.telefono || booking.telefonoContacto || (booking as any).telefono || '').trim();
+    if (effectivePhone) {
+      // Clean phone number (keep +, digits, spaces)
+      const cleanPhone = effectivePhone.replace(/[^\d+]/g, '');
+      xml += `        <telefono>${escapeXml(cleanPhone || effectivePhone)}</telefono>\n`;
     }
     if (guest.correo?.trim()) {
       xml += `        <correo>${escapeXml(guest.correo.trim())}</correo>\n`;
@@ -215,6 +256,7 @@ export function generateSesCsv(
     'FECHA_NACIMIENTO',
     'NACIONALIDAD',
     'PAIS',
+    'TELEFONO',
   ];
 
   const rows = guests.map((g) => [
@@ -232,6 +274,7 @@ export function generateSesCsv(
     g.fechaNacimiento || '',
     g.paisNacionalidad || 'NLD',
     g.paisNacionalidad || 'NLD',
+    `"${(g.telefono || booking.telefonoContacto || (booking as any).telefono || '').replace(/"/g, '""')}"`,
   ]);
 
   return [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');

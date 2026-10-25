@@ -18,6 +18,8 @@ import {
   Play,
   RotateCcw,
   BookOpen,
+  CreditCard,
+  Phone,
 } from 'lucide-react';
 import { Guest, PropertySettings, BookingData, DocumentType, ArchivedBooking } from './types';
 import { Header } from './components/Header';
@@ -27,7 +29,8 @@ import { CameraModal } from './components/CameraModal';
 import { ParteViajerosModal } from './components/ParteViajerosModal';
 import { PortalGuide } from './components/PortalGuide';
 import { AnnualRegisterModal } from './components/AnnualRegisterModal';
-import { generateSesXml, generateSesCsv } from './utils/xmlGenerator';
+import { NumSoporteModal } from './components/NumSoporteModal';
+import { generateSesXml, generateSesCsv, hasMissingNumSoporte, isSpanishOrNieDoc } from './utils/xmlGenerator';
 import { parseAndValidateMrz } from './utils/mrzValidator';
 import { compressImageForOcr } from './utils/imageCompressor';
 import { SAMPLE_PROPERTY, SAMPLE_BOOKING, SAMPLE_GUESTS } from './utils/sampleData';
@@ -61,6 +64,7 @@ const DEFAULT_BOOKING: BookingData = {
   numeroPersonas: 1,
   tipoPago: 'PLATF',
   medioPago: 'PLATAFORMA VIRTUAL',
+  telefonoContacto: '+31 6 12345678',
 };
 
 interface QueueFileItem {
@@ -131,6 +135,8 @@ export default function App() {
   const [isParteOpen, setIsParteOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isAnnualRegisterOpen, setIsAnnualRegisterOpen] = useState(false);
+  const [isNumSoporteOpen, setIsNumSoporteOpen] = useState(false);
+  const [targetNumSoporteGuestId, setTargetNumSoporteGuestId] = useState<string | undefined>(undefined);
 
   // Annual register / historical archive state
   const [archive, setArchive] = useState<ArchivedBooking[]>(() => {
@@ -207,6 +213,9 @@ export default function App() {
       property,
       guests: [...guests],
       createdAt: new Date().toISOString(),
+      tipoPago: booking.tipoPago,
+      medioPago: booking.medioPago,
+      titularPago: booking.titularPago,
     };
 
     setArchive((prev) => {
@@ -230,9 +239,23 @@ export default function App() {
       });
   }, []);
 
-  // Update booking field
+  // Update booking field and auto-sync phone number to all guests
   const updateBooking = (field: keyof BookingData, value: any) => {
     setBooking((prev) => ({ ...prev, [field]: value }));
+    if (field === 'telefonoContacto') {
+      const newPhone = String(value || '');
+      setGuests((prev) =>
+        prev.map((g) => ({
+          ...g,
+          telefono: newPhone,
+        }))
+      );
+    }
+  };
+
+  // Helper to explicitly re-sync contact phone to all current guests
+  const handleSyncPhoneToAllGuests = (phone: string) => {
+    setGuests((prev) => prev.map((g) => ({ ...g, telefono: phone })));
   };
 
   // Guest operations
@@ -268,6 +291,7 @@ export default function App() {
       fechaExpedicion: '',
       fechaCaducidad: '',
       paisExpedicion: 'NLD',
+      telefono: booking.telefonoContacto || '',
     };
     setGuests((prev) => [...prev, newGuest]);
   };
@@ -371,12 +395,20 @@ export default function App() {
     return travelersList.map((d: any, idx: number) => {
       // Check MRZ if returned
       let mrzValid = false;
+      let mrzNumSoporte: string | undefined = undefined;
       if (d.mrzLines && Array.isArray(d.mrzLines) && d.mrzLines.length > 0) {
         const mrzResult = parseAndValidateMrz(d.mrzLines);
         if (mrzResult) {
           mrzValid = mrzResult.isValid;
+          if (mrzResult.numSoporte) {
+            mrzNumSoporte = mrzResult.numSoporte;
+          }
         }
       }
+
+      // Hardened Num Soporte extraction from OCR vision or MRZ
+      const rawNumSoporte = (d.numSoporte || mrzNumSoporte || '').toUpperCase().replace(/\s/g, '');
+      const assignedPhone = (d.telefono || booking.telefonoContacto || '').trim();
 
       return {
         id: 'guest-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5) + '-' + idx,
@@ -393,7 +425,8 @@ export default function App() {
         paisNacionalidad: (d.paisNacionalidad || 'NLD').toUpperCase().trim(),
         tipoDocumento: (d.tipoDocumento as DocumentType) || 'P',
         numeroDocumento: (d.numeroDocumento || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
-        numSoporte: (d.numSoporte || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+        numSoporte: rawNumSoporte,
+        telefono: assignedPhone,
         fechaExpedicion: d.fechaExpedicion || '',
         fechaCaducidad: d.fechaCaducidad || '',
         paisExpedicion: (d.paisExpedicion || d.paisNacionalidad || 'NLD').toUpperCase().trim(),
@@ -508,10 +541,20 @@ export default function App() {
   const xmlOutput = generateSesXml(guests, property, booking);
   const csvOutput = generateSesCsv(guests, property, booking);
 
+  // Missing Num Soporte count (will cause [Ha de informar el número de soporte del documento.])
+  const missingNumSoporteGuests = guests.filter((g) => hasMissingNumSoporte(g));
+  const missingNumSoporteCount = missingNumSoporteGuests.length;
+
   const isValidForExport = Boolean(property.codigoEstablecimiento.trim() && guests.length > 0);
 
   // Download files
-  const handleDownloadXml = () => {
+  const handleDownloadXml = (bypassNumSoporteCheck = false) => {
+    // If Spanish documents are missing Num Soporte, intercept to prevent Ministry validation rejection
+    if (!bypassNumSoporteCheck && missingNumSoporteCount > 0) {
+      setIsNumSoporteOpen(true);
+      return;
+    }
+
     saveBookingToArchive();
     const blob = new Blob([xmlOutput], { type: 'text/xml;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -559,6 +602,8 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}
         onOpenAnnualRegister={() => setIsAnnualRegisterOpen(true)}
+        onOpenNumSoporteModal={() => setIsNumSoporteOpen(true)}
+        missingNumSoporteCount={missingNumSoporteCount}
         archivedCount={archive.length}
         hasServerAi={hasServerAi}
       />
@@ -648,22 +693,129 @@ export default function App() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none font-mono"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Payment Method (Tipo de Pago)
-                </label>
-                <select
-                  value={booking.tipoPago || 'PLATF'}
-                  onChange={(e) => updateBooking('tipoPago', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none font-semibold text-xs bg-white"
-                >
-                  <option value="PLATF">PLATF - Plataforma Online (Airbnb / Booking)</option>
-                  <option value="TARJT">TARJT - Tarjeta de Crédito / Débito</option>
-                  <option value="EFECT">EFECT - Efectivo (Cash)</option>
-                  <option value="TRANS">TRANS - Transferencia Bancaria</option>
-                  <option value="OTRO">OTRO - Otro</option>
-                </select>
+            {/* Payment Method & Contact Phone Number Row (Strak, eenvoudig en direct naast elkaar) */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs items-start">
+                {/* 1. Payment Method Dropdown */}
+                <div className="md:col-span-5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-red-600" />
+                      <span>Payment Method (Tipo de Pago) *</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-mono">RD 933/2021</span>
+                  </div>
+
+                  <select
+                    value={booking.tipoPago || 'PLATF'}
+                    onChange={(e) => updateBooking('tipoPago', e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none font-semibold text-xs bg-white text-slate-900 shadow-xs"
+                  >
+                    <option value="PLATF">PLATF - Plataforma Online (Airbnb / Booking / VRBO)</option>
+                    <option value="TARJT">TARJT - Tarjeta de Crédito / Débito (Kaart)</option>
+                    <option value="TRANS">TRANS - Transferencia Bancaria (IBAN / Bank)</option>
+                    <option value="EFECT">EFECT - Efectivo (Contant)</option>
+                    <option value="MOVIL">MOVIL - Pago Móvil (Bizum / Apple Pay)</option>
+                    <option value="DESTI">DESTI - Pago en Destino (Bij aankomst)</option>
+                    <option value="OTRO">OTRO - Otro</option>
+                  </select>
+
+                  <span className="text-[10.5px] text-slate-500 block">
+                    Geselecteerde betaalmethode voor het Spaanse SES.HOSPEDAJES portaal.
+                  </span>
+                </div>
+
+                {/* 2. Extra Invulvenster Telefoonnummer Gasten (Direct naast venster Payment Method) */}
+                <div className="md:col-span-7 bg-red-50/50 border border-red-200/90 rounded-xl p-3 space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <label className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                      <Phone className="w-3.5 h-3.5 text-red-600" />
+                      <span>Telefoonnummer Gasten (Teléfono de Contacto) *</span>
+                    </label>
+                    <span className="text-[10px] font-mono bg-red-100 text-red-800 px-1.5 py-0.2 rounded font-bold">
+                      Geldt voor alle gasten
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      value={booking.telefonoContacto || ''}
+                      onChange={(e) => updateBooking('telefonoContacto', e.target.value)}
+                      placeholder="bijv. +31 6 12345678 of +34 600 123 456"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none font-mono font-bold text-xs bg-white text-slate-900 shadow-xs"
+                    />
+                  </div>
+
+                  {/* Snelkeuze landcode prefix knoppen */}
+                  <div className="flex items-center justify-between gap-1 flex-wrap pt-0.5">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[10px] text-slate-500 font-semibold">Land:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = (booking.telefonoContacto || '').replace(/^\+\d+\s*/, '');
+                          updateBooking('telefonoContacto', `+31 ${cur}`.trim());
+                        }}
+                        className="text-[10px] bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg font-mono text-slate-700 font-bold transition shadow-2xs"
+                        title="Nederland (+31)"
+                      >
+                        🇳🇱 +31
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = (booking.telefonoContacto || '').replace(/^\+\d+\s*/, '');
+                          updateBooking('telefonoContacto', `+34 ${cur}`.trim());
+                        }}
+                        className="text-[10px] bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg font-mono text-slate-700 font-bold transition shadow-2xs"
+                        title="Spanje (+34)"
+                      >
+                        🇪🇸 +34
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = (booking.telefonoContacto || '').replace(/^\+\d+\s*/, '');
+                          updateBooking('telefonoContacto', `+32 ${cur}`.trim());
+                        }}
+                        className="text-[10px] bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg font-mono text-slate-700 font-bold transition shadow-2xs"
+                        title="België (+32)"
+                      >
+                        🇧🇪 +32
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = (booking.telefonoContacto || '').replace(/^\+\d+\s*/, '');
+                          updateBooking('telefonoContacto', `+49 ${cur}`.trim());
+                        }}
+                        className="text-[10px] bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg font-mono text-slate-700 font-bold transition shadow-2xs"
+                        title="Duitsland (+49)"
+                      >
+                        🇩🇪 +49
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = (booking.telefonoContacto || '').replace(/^\+\d+\s*/, '');
+                          updateBooking('telefonoContacto', `+44 ${cur}`.trim());
+                        }}
+                        className="text-[10px] bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg font-mono text-slate-700 font-bold transition shadow-2xs"
+                        title="VK (+44)"
+                      >
+                        🇬🇧 +44
+                      </button>
+                    </div>
+
+                    <span className="text-[10.5px] text-emerald-700 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Inbegrepen in XML (&lt;telefono&gt;)</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -875,6 +1027,33 @@ export default function App() {
               </div>
             ) : (
               <div className="space-y-4">
+                {missingNumSoporteCount > 0 && (
+                  <div className="p-3.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-bold text-red-950">
+                          {missingNumSoporteCount} Spaanse gast(en) missen het &quot;Número de Soporte&quot;!
+                        </strong>
+                        <span className="text-[11px] text-red-800">
+                          Het Spaanse portaal geeft de foutmelding: <em>[Ha de informar el número de soporte del documento.]</em>
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetNumSoporteGuestId(missingNumSoporteGuests[0]?.id);
+                        setIsNumSoporteOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition shadow shrink-0 flex items-center gap-1.5"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Open Num Soporte Venster &rarr;</span>
+                    </button>
+                  </div>
+                )}
+
                 {guests.map((guest, idx) => (
                   <GuestCard
                     key={guest.id}
@@ -883,6 +1062,11 @@ export default function App() {
                     onUpdate={handleUpdateGuest}
                     onDelete={handleDeleteGuest}
                     onDuplicate={handleDuplicateGuest}
+                    onOpenNumSoporteModal={(guestId) => {
+                      setTargetNumSoporteGuestId(guestId);
+                      setIsNumSoporteOpen(true);
+                    }}
+                    bookingPhone={booking.telefonoContacto}
                   />
                 ))}
               </div>
@@ -921,6 +1105,34 @@ export default function App() {
                   </button>
                   .
                 </div>
+              </div>
+            )}
+
+            {/* Missing Num Soporte alert banner */}
+            {missingNumSoporteCount > 0 && (
+              <div className="p-3 bg-red-950/80 border border-red-700/80 rounded-xl text-red-200 text-xs space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5 animate-pulse" />
+                  <div>
+                    <strong className="block font-bold text-red-300">
+                      Validatiefout in Spanje voorkomen
+                    </strong>
+                    <span className="text-[11px] text-red-200 block">
+                      {missingNumSoporteCount} gast(en) missen het &quot;Número de Soporte&quot;. Het Spaanse portaal weigert dit met:
+                    </span>
+                    <span className="font-mono text-[10px] text-amber-300 bg-red-900/60 px-1.5 py-0.5 rounded border border-red-800 block mt-1">
+                      [Ha de informar el número de soporte del documento.]
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsNumSoporteOpen(true)}
+                  className="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Open Num Soporte Invoervenster</span>
+                </button>
               </div>
             )}
 
@@ -982,7 +1194,7 @@ export default function App() {
               <button
                 type="button"
                 disabled={!isValidForExport}
-                onClick={outputTab === 'xml' ? handleDownloadXml : handleDownloadCsv}
+                onClick={outputTab === 'xml' ? () => handleDownloadXml() : handleDownloadCsv}
                 className="w-full bg-gradient-to-r from-red-600 via-amber-500 to-amber-400 hover:from-red-500 hover:to-amber-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black py-3 px-4 rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4 stroke-[2.5]" />
@@ -1107,6 +1319,18 @@ export default function App() {
       />
 
       <PortalGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+
+      <NumSoporteModal
+        isOpen={isNumSoporteOpen}
+        onClose={() => {
+          setIsNumSoporteOpen(false);
+          setTargetNumSoporteGuestId(undefined);
+        }}
+        guests={guests}
+        onSaveGuests={(updated) => setGuests(updated)}
+        onDownloadXml={() => handleDownloadXml(true)}
+        targetGuestId={targetNumSoporteGuestId}
+      />
 
       <AnnualRegisterModal
         isOpen={isAnnualRegisterOpen}

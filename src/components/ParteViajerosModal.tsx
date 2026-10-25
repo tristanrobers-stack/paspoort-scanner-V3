@@ -109,7 +109,7 @@ export const ParteViajerosModal: React.FC<ParteViajerosModalProps> = ({
                 <h4 className="font-bold text-[11px] uppercase tracking-wide text-slate-700 mb-2 border-b border-slate-200 pb-1">
                   1. Datos del Viajero / Traveler Details
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase">1º Apellido / 1st Surname</span>
                     <div className="font-bold text-slate-900 py-1 border-b border-dotted border-slate-400">
@@ -144,6 +144,12 @@ export const ParteViajerosModal: React.FC<ParteViajerosModalProps> = ({
                     <span className="text-[10px] text-slate-500 block uppercase">Nacionalidad / Nationality</span>
                     <div className="font-bold text-slate-900 py-1 border-b border-dotted border-slate-400">
                       {guest.paisNacionalidad}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase">Teléfono / Phone</span>
+                    <div className="font-mono font-bold text-slate-900 py-1 border-b border-dotted border-slate-400">
+                      {guest.telefono || booking.telefonoContacto || '-'}
                     </div>
                   </div>
                 </div>

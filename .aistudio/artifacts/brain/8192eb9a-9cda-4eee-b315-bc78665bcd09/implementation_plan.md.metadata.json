@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan om de interface te vereenvoudigen door het gele betaalnummer-venster en het kaarthouder-veld volledig te verwijderen en op de achtergrond automatisch in te vullen voor de XML, terwijl het enkele telefoonnummer-venster direct naast Payment Method behouden blijft en automatisch op alle gasten wordt toegepast, en Num Soporte scanner integratie gewaarborgd blijft.",
+  "updatedAt":  "2026-10-25T09:17:15.168315980Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

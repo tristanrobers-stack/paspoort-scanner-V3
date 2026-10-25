@@ -53,6 +53,7 @@ export interface BookingData {
   tipoPago?: TipoPago;
   medioPago?: string;
   titularPago?: string;
+  telefonoContacto?: string; // Central contact phone number synced to all guests
 }
 
 export interface ArchivedBooking {
@@ -65,4 +66,9 @@ export interface ArchivedBooking {
   property: PropertySettings;
   guests: Guest[];
   createdAt: string;
+  tipoPago?: TipoPago;
+  medioPago?: string;
+  titularPago?: string;
 }
+
+

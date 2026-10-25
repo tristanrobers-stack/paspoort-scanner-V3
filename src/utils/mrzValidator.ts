@@ -36,6 +36,7 @@ export interface MrzParseResult {
   surname?: string;
   givenNames?: string;
   compositeValid?: boolean;
+  numSoporte?: string;
 }
 
 export function parseAndValidateMrz(lines: string[]): MrzParseResult | null {
@@ -125,10 +126,22 @@ export function parseAndValidateMrz(lines: string[]): MrzParseResult | null {
     const surname = nameParts[0]?.replace(/</g, ' ').trim() || '';
     const givenNames = nameParts[1]?.replace(/</g, ' ').trim() || '';
 
+    const issuingCountry = l1.substring(2, 5).replace(/</g, '');
+    let numSoporte: string | undefined = undefined;
+
+    // Spanish DNI: Line 1 often begins with IDESP...
+    if (l1.startsWith('IDESP') || issuingCountry === 'ESP') {
+      const line1Clean = l1.replace(/</g, '');
+      if (line1Clean.startsWith('IDESP')) {
+        // e.g. IDESP004918 or IDESP followed by 9 chars
+        numSoporte = line1Clean.substring(0, 14);
+      }
+    }
+
     return {
       isValid: docNumValid && dobValid,
-      documentType: docTypeChar === 'I' ? 'I' : 'D',
-      issuingCountry: l1.substring(2, 5).replace(/</g, ''),
+      documentType: issuingCountry === 'ESP' ? 'D' : docTypeChar === 'I' ? 'I' : 'D',
+      issuingCountry,
       documentNumber: rawDocNum,
       documentNumberValid: docNumValid,
       birthDate: formatMrzDate(rawDob, true),
@@ -139,6 +152,7 @@ export function parseAndValidateMrz(lines: string[]): MrzParseResult | null {
       nationality: rawNat,
       surname,
       givenNames,
+      numSoporte,
     };
   }
 
